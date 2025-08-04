@@ -271,7 +271,8 @@ void loop() {
         /* イルミネーションここまで */
         debug_led(layer);  // レイヤ切り替え状態を表示
         lcd.setCursor(0, 0);
-        lcd.print("10-KEYBOARD:");
+        lcd.print("10-KEYBOARD ");
+        
         while (now_sw > 0); // 同時押しが離されるまで待つ
         pattern = SCAN_SW;  // 検出状態を最初に戻す
 
