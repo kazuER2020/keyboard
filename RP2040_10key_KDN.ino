@@ -110,19 +110,19 @@ char layers_array[3][20] = { // レイヤごとのキー割り当て配列:
   },
 
   { // layer2:
-    KEY_BACKSPACE, '/', KEY_KP_ASTERISK, '-',
-    KEY_HOME, KEY_UP_ARROW, KEY_PAGE_UP, KEY_BACKSPACE,
-    KEY_LEFT_ARROW, '\n', KEY_RIGHT_ARROW, KEY_PAGE_DOWN,
-    KEY_END, KEY_DOWN_ARROW, KEY_PAGE_DOWN, ' ',
-    KEY_ESC, ' ', KEY_DELETE, '\n'
+    KEY_BACKSPACE , '/'         , KEY_KP_ASTERISK, '-',
+    KEY_HOME      , KEY_UP_ARROW, KEY_PAGE_UP    , KEY_BACKSPACE,
+    KEY_LEFT_ARROW, '\n'        , KEY_RIGHT_ARROW, KEY_PAGE_DOWN,
+    KEY_LEFT_SHIFT, KEY_DOWN_ARROW, KEY_LEFT_GUI, ' ',
+    KEY_LEFT_CTRL , ' '         , KEY_DELETE     , '\n'
   },
 
   { // layer3:
-    KEY_ESC, KEY_F2, KEY_F4, KEY_PRINT_SCREEN,
-    KEY_HOME, KEY_UP_ARROW, KEY_PAGE_UP, KEY_PRINT_SCREEN,
-    KEY_LEFT_ARROW, ' ', KEY_RIGHT_ARROW, ' ',
-    KEY_END, KEY_DOWN_ARROW, KEY_PAGE_DOWN, ' ',
-    KEY_ESC, ' ', KEY_DELETE, '\n'
+    KEY_ESC       , KEY_F2      , KEY_F4         , KEY_PRINT_SCREEN,
+    KEY_HOME      , KEY_UP_ARROW, KEY_PAGE_UP    , KEY_PRINT_SCREEN,
+    KEY_LEFT_ARROW, ' '         , KEY_RIGHT_ARROW, KEY_PRINT_SCREEN,
+    KEY_LEFT_SHIFT, KEY_DOWN_ARROW, KEY_LEFT_GUI, ' ',
+    KEY_LEFT_CTRL , ' '         , KEY_DELETE     , '\n'
   }
 };
 
