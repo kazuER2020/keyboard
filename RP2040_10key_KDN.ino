@@ -203,44 +203,40 @@ void setup() {
 
   /* イルミネーション(起動) */
   digitalWrite(LED_RIGHT, HIGH);
-  delay(1000);
+  delay(500);
   digitalWrite(LED_RIGHT, LOW);
-
-  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
-    digitalWrite(i, HIGH);
-    delay(100);
-  }
-  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
-    digitalWrite(i, LOW);
-    delay(100);
-  }
-  delay(300);
-  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
-    digitalWrite(i, HIGH);
-  }
-
   /* イルミネーションここまで */
 
-  lcd.setCursor(0, 0);
-  lcd.print("10-KEY MODE:   ");
+
   digitalWrite(LCD_BACKLIGHT_EN, HIGH);  //LCDバックライトON
   lcdCursorPos = 0;
   isASCII = 0;
   isEnternum = 0;
   isclick = 0;
-  mode = TENKEY;  // 初回はテンキーとして開始:
+  lcd.setCursor(0, 0);
+  if (get_sw() > 0) {
+    mode = CALC;  // 何か押されていたら電卓で開始:
+    lcd.print("CALC MODE:     ");
+    Illmination2();
+  } else {
+    mode = TENKEY;  // 何も押されていなければテンキーとして開始:
+    lcd.print("10-KEY MODE:   ");
+    Illmination3();
+  }
+
   starttime = millis();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  debug_led(layer);
+
   nowtime = millis();
   now_sw = get_sw();
 
   //  Serial.println(pattern);
   switch (mode) {
     case TENKEY:
+      debug_led(layer);
       // テンキーモードの場合:
       switch (pattern) {
         // SWの全スキャン
@@ -296,7 +292,7 @@ void loop() {
             for (int i = 0; i < 16; i++) {
               lcd.print(" ");
             }
-            Illmination();
+            Illmination2();
             lcd.setCursor(0, 0);
             lcd.print("CALC MODE:        ");
             while (get_sw() > 0)
@@ -417,7 +413,7 @@ void loop() {
             for (int i = 0; i < 16; i++) {
               lcd.print(" ");
             }
-            Illmination();
+            Illmination2();
 
             lcd.setCursor(0, 0);
             lcd.print("10-KEY MODE:   ");
@@ -703,12 +699,12 @@ void lcdPrintLeftAligned(uint8_t row, const char* str) {
 }
 
 // 数値として取得
-double getValue() {
+double getValue(void) {
   return atof(inputBuffer);
 }
 
 // バッファクリア
-void clearBuffer() {
+void clearBuffer(void) {
   inputLen = 0;
   inputBuffer[0] = '\0';
 }
@@ -732,4 +728,43 @@ void Illmination(void) {
     delay(100);
   }
   /* イルミネーションここまで */
+}
+
+void Illmination2(void) {
+  /* イルミネーション */
+  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
+    digitalWrite(i, LOW);
+    delay(100);
+  }
+
+  for (int i = KEYLED_EN1; i <= KEYLED_EN5 + 1; i++) {
+    if (i <= KEYLED_EN5) {
+      digitalWrite(i, HIGH);
+    }
+    if (i != KEYLED_EN1) {
+      digitalWrite(i - 1, LOW);
+    }
+    delay(100);
+  }
+
+  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
+    digitalWrite(i, HIGH);
+  }
+
+  /* イルミネーションここまで */
+}
+
+void Illmination3(void) {
+  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
+    digitalWrite(i, HIGH);
+    delay(100);
+  }
+  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
+    digitalWrite(i, LOW);
+    delay(100);
+  }
+  delay(300);
+  for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
+    digitalWrite(i, HIGH);
+  }
 }
