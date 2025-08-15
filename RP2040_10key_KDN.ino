@@ -23,6 +23,7 @@
 #define MAX_LAYERS 3
 
 #define SW_DATA_MAX 0xFFFFF
+#define LAYER_CHANGE_INTERVAL_COUNT 3
 
 /* SW判定個別検出用 */
 #define DET_SW1 0x00001
@@ -93,7 +94,7 @@ const int LEDS[3] = {
 unsigned char sw_stat[20] = { 0 };
 
 uint32_t nowtime, starttime;
-int now_sw, old_sw;
+uint32_t now_sw, old_sw;
 int pattern;
 int layer, old_layer;
 int lcdClearFlag = 0;
@@ -104,6 +105,7 @@ unsigned long sw_det;
 char keyChar;
 char inputBuffer[17] = "";
 uint8_t inputLen = 0;
+int isZeroDivision;
 
 char layers_array[3][20] = {  // レイヤごとのキー割り当て配列:
   {                           // layer1:
@@ -203,36 +205,32 @@ void setup() {
 
   /* イルミネーション(起動) */
   digitalWrite(LED_RIGHT, HIGH);
-  delay(500);
-  digitalWrite(LED_RIGHT, LOW);
-  /* イルミネーションここまで */
-
-
   digitalWrite(LCD_BACKLIGHT_EN, HIGH);  //LCDバックライトON
   lcdCursorPos = 0;
   isASCII = 0;
   isEnternum = 0;
   isclick = 0;
+  isZeroDivision = 0;
   lcd.setCursor(0, 0);
   if (get_sw() > 0) {
     mode = CALC;  // 何か押されていたら電卓で開始:
-    lcd.print("CALC MODE:     ");
+    lcdCALC_Title();
     Illmination2();
   } else {
     mode = TENKEY;  // 何も押されていなければテンキーとして開始:
-    lcd.print("10-KEY MODE:   ");
+    lcdTENKEY_Title();
     Illmination3();
   }
 
+  digitalWrite(LED_RIGHT, LOW);
+  pattern = SCAN_SW;
   starttime = millis();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-
   nowtime = millis();
   now_sw = get_sw();
-
   //  Serial.println(pattern);
   switch (mode) {
     case TENKEY:
@@ -242,28 +240,31 @@ void loop() {
         // SWの全スキャン
         case SCAN_SW:
           digitalWrite(LED_RIGHT, LOW);
-          if (now_sw != old_sw) {
+          if (now_sw > 0) {
             pattern = TURN_ON;
             cnt0 = nowtime;
+            isclick = 0;
           }
           break;
 
         // SWのどれかが押された時
         case TURN_ON:
-          nowtime = millis();
-          isclick = 0;  // 連続押し状態を初期化
-          layer_ischange = get_layer_change();
-          if (layer_ischange == 1) {  // レイヤ変更があった場合:
+          nowtime = millis();         // 連続押し状態を初期化
+          if (nowtime - cnt0 > 10) {  // 10ms毎にチェックし、同時押しがなければ次のステップへ進む
+            cnt0 = nowtime;
+            layer_ischange = get_layer_change();
+            isclick++;
+          }
+          if (layer_ischange == 1) {  // レイヤ変更があった場合
+            layer_ischange = 0;
             old_layer = layer;
             layer++;                         // レイヤの階層を1進める
             if (layer > (MAX_LAYERS - 1)) {  // レイヤ数上限に達した場合は最初に戻す
               layer = LAYER_1;
             }
             sprintf(strbuf, "LAYER: %d>>%d ", old_layer, layer);
-            //lcd.clear();
             lcd.setCursor(0, 0);
             lcd.print(strbuf);
-
             lcdCursorPos = 0;
             clearLine(1);
 
@@ -281,29 +282,30 @@ void loop() {
             debug_led(layer);  // レイヤ切り替え状態を表示
 
             while (get_sw() > 0)
-              ;                 // 同時押しが離されるまで待つ
+              ;  // 同時押しが離されるまで待つ
+            lcdTENKEY_Title();
             pattern = SCAN_SW;  // 検出状態を最初に戻す
-
-          } else if (layer_ischange == 2) {  // レイヤ変更ではなくモード切替の場合:
-            mode = CALC;                     // モード切キー入力へモード変更
+          }
+          if (layer_ischange == 2) {  // レイヤ変更ではなくモード切替の場合:
+            layer_ischange = 0;
+            mode = CALC;  // モード切替入力へモード変更
             lcd.setCursor(0, 0);
-            lcd.print("10-KEY -> CALC: ");
+            lcd.print("10-KEY >> CALC: ");
             lcd.setCursor(0, 1);
             for (int i = 0; i < 16; i++) {
               lcd.print(" ");
             }
             Illmination2();
-            lcd.setCursor(0, 0);
-            lcd.print("CALC MODE:        ");
+            lcdCALC_Title();
+            digitalWrite(LED_RIGHT, LOW);
             while (get_sw() > 0)
               ;  // 同時押しが離されるまで待つ
             pattern = SCAN_SW;
-
-          } else {
-            if (nowtime - cnt0 > 5) {  // チャタリング防止:40ms
-              pattern = DETECT_SW;
-              cnt0 = cnt_cht;
-            }
+          }
+          if (isclick > LAYER_CHANGE_INTERVAL_COUNT) {
+            pattern = DETECT_SW;
+            isclick = 0;
+            cnt0 = nowtime;
           }
           break;
 
@@ -360,7 +362,7 @@ void loop() {
 
 
         case RELOAD_SW:
-          if (isclick == 1) reload_time = 200;
+          if (isclick == 1) reload_time = 150;
           else reload_time = 50;
 
           now_sw = get_sw();
@@ -386,47 +388,49 @@ void loop() {
       break;
 
     case CALC:
-      debug_led(0);
       switch (pattern) {
         case SCAN_SW:
+          debug_led(0);
           if (now_sw != old_sw) {
             if (inputLen == 0 && isEnternum == 0) {
-              lcd.setCursor(0, 0);
-              lcd.print("CALC MODE:      ");
+              lcdCALC_Title();
+              digitalWrite(LED_RIGHT, LOW);
               clearBuffer();
             }
             pattern = TURN_ON;
+            isclick = 0;
             cnt0 = nowtime;
           }
           break;
 
         case TURN_ON:
-          digitalWrite(LED_RIGHT, HIGH);
           nowtime = millis();
-          isclick = 0;
-          layer_ischange = get_layer_change();
+          if (nowtime - cnt0 > 10) {  //10ms毎にチェックし、同時押しがなければ次のステップへ進む
+            cnt0 = nowtime;
+            layer_ischange = get_layer_change();
+            isclick++;
+          }
           if (layer_ischange == 2) {  // モード切替
-            mode = TENKEY;            // 電卓→10キー入力へモード変更
+            layer_ischange = 0;
+            mode = TENKEY;  // 電卓→10キー入力へモード変更
             lcd.setCursor(0, 0);
-            lcd.print("CALC -> 10-KEY: ");
+            lcd.print("CALC >> 10-KEY: ");
             lcd.setCursor(0, 1);
             for (int i = 0; i < 16; i++) {
               lcd.print(" ");
             }
             Illmination2();
 
-            lcd.setCursor(0, 0);
-            lcd.print("10-KEY MODE:   ");
-            layer_ischange = 0;
+            lcdTENKEY_Title();
             clearBuffer();
             while (get_sw() > 0)
               ;
             pattern = SCAN_SW;
-          } else {
-            if (nowtime - cnt0 > 5) {
-              pattern = DETECT_SW;
-              cnt0 = cnt_cht;
-            }
+          }
+          if (isclick > LAYER_CHANGE_INTERVAL_COUNT) {
+            pattern = DETECT_SW;
+            isclick = 0;
+            cnt0 = nowtime;
           }
           break;
 
@@ -440,6 +444,7 @@ void loop() {
               if ((keyChar >= '0' && keyChar <= '9') || keyChar == '.') {
                 addChar(keyChar);
                 lcdPrintRightAligned(1, inputBuffer);
+                digitalWrite(LED_RIGHT, HIGH);
               } else if (keyChar == '-') {
                 // バッファが空なら負号として入力
                 if (inputLen == 0) {
@@ -494,41 +499,51 @@ void loop() {
                     case '/':
                       if (secondInputValue != 0) calc_result = firstInputValue / secondInputValue;
                       else {
-                        clearBuffer();
-                        strcpy(inputBuffer, "ERR!");
-                        inputLen = strlen(inputBuffer);
-                        lcdPrintRightAligned(0, inputBuffer);
-                        break;
+                        isZeroDivision = 1;  // 0で割り算を検出
                       }
                       break;
                   }
 
-                  // 結果表示
-                  char temp[17];
-                  long intPart = (long)calc_result;
-                  int intLen = 1;
-                  long tmp = labs(intPart);
-                  while (tmp >= 10) {
-                    tmp /= 10;
-                    intLen++;
-                  }
-                  int maxPrecision = 16 - intLen - 1;
-                  if (maxPrecision < 0) maxPrecision = 0;
-                  if (maxPrecision > 10) maxPrecision = 10;
-                  dtostrf(calc_result, 0, maxPrecision, temp);
-                  trimTrailingZeros(temp);
-                  strncpy(inputBuffer, temp, 16);
-                  inputBuffer[16] = '\0';
-                  inputLen = strlen(inputBuffer);
-                  lcd.setCursor(0, 0);
-                  lcd.print("Result:         ");
-                  lcdPrintRightAligned(1, inputBuffer);
+                  // 0で割り算を検出
+                  if (isZeroDivision == 1) {
+                    clearBuffer();
+                    strcpy(inputBuffer, "ZERO DIV ERR!!! ");
+                    inputLen = strlen(inputBuffer);
+                    lcdPrintRightAligned(0, inputBuffer);
+                    digitalWrite(LED_RIGHT, LOW);
+                    clearBuffer();
+                    isZeroDivision = 0;
+                    isEnternum = 0;  // 計算終了
+                    break;
 
-                  isEnternum = 0;  // 計算終了
+                  } else {
+                    // 結果表示
+                    char temp[17];
+                    long intPart = (long)calc_result;
+                    int intLen = 1;
+                    long tmp = labs(intPart);
+                    while (tmp >= 10) {
+                      tmp /= 10;
+                      intLen++;
+                    }
+                    int maxPrecision = 16 - intLen - 1;
+                    if (maxPrecision < 0) maxPrecision = 0;
+                    if (maxPrecision > 10) maxPrecision = 10;
+                    dtostrf(calc_result, 0, maxPrecision, temp);
+                    trimTrailingZeros(temp);
+                    strncpy(inputBuffer, temp, 16);
+                    inputBuffer[16] = '\0';
+                    inputLen = strlen(inputBuffer);
+                    lcd.setCursor(0, 0);
+                    lcd.print("Result:         ");
+                    lcdPrintRightAligned(1, inputBuffer);
+                    digitalWrite(LED_RIGHT, LOW);
+                    isEnternum = 0;  // 計算終了
+                  }
                 }
               }
             }
-            sw_det <<= 1;
+            sw_det <<= 0x0001;
           }
           isclick++;
           cnt0 = nowtime;
@@ -536,29 +551,57 @@ void loop() {
           break;
 
         case RELOAD_SW:
-          if (isclick == 1) reload_time = 200;
+          if (isclick == 1) reload_time = 150;  // 電卓の速い入力にも耐えられるようにする
           else reload_time = 50;
 
           now_sw = get_sw();
+          if (now_sw & DET_SW20) {   // Enterがずっと押し込まれた場合、入力内容をクリア
+            debug_led3(isclick, 5);  // 変数isclickの最大値でLED全点灯
+            if (isclick >= 5) {
+              clearBuffer();
+              digitalWrite(LED_RIGHT, HIGH);
+              lcd.setCursor(0, 0);
+              lcd.print("Memory Cleared! ");
+              lcd.setCursor(0, 1);
+              for (int i = 0; i < 16; i++) {
+                lcd.print(" ");
+              }
+              while (get_sw() > 0)
+                ;
+              delay(1000);  // クリア状態を表示したまま少し待つ
+              isclick = 0;
+              isEnternum = 0;
+              isZeroDivision = 0;
+              debug_led3(0, 10);
+              lcdCALC_Title();
+              pattern = SCAN_SW;
+            }
+          }
 
           if (nowtime - cnt0 > reload_time) {
             cnt0 = cnt_cht;
             if (now_sw > 0) {
               pattern = DETECT_SW;
             } else {
+              isclick = 0;
               pattern = SCAN_SW;
             }
           } else {
             if (now_sw == 0) {
+              isclick = 0;
               pattern = SCAN_SW;
             }
           }
+          break;
+
+        default:
+          /* NOT REACHED */
           break;
       }
       break;
 
     default:
-      /*NOT REACHED*/
+      /* NOT REACHED */
       break;
       old_sw = now_sw;
       old_mode = mode;
@@ -611,14 +654,15 @@ void set_ROW(int row) {
 /************************************************************************/
 int get_layer_change(void) {
   int ret;
-  int s;
+  uint32_t s;
   ret = 0;
   s = get_sw();
-  if ((s & DET_SW1) && (s & DET_SW2)) {
-    ret = 1;
+
+  if ((s & DET_SW1) && (s & DET_SW3)) {
+    ret = 2;  // モード切替
   }
-  if ((s & DET_SW2) && (s & DET_SW3)) {
-    ret = 2;
+  if ((s & DET_SW1) && (s & DET_SW2)) {
+    ret = 1;  // レイヤ切り替え
   }
   return ret;
 }
@@ -630,10 +674,19 @@ int get_layer_change(void) {
 /* メモ 2bitのLEDとして現在のレイヤを識別するために使用                    */
 /************************************************************************/
 void debug_led(int layer) {
-  int i;
-
   digitalWrite(LEDS[1], (0x02 & layer) >> 1);
   digitalWrite(LEDS[0], 0x01 & layer);
+}
+
+void debug_led3(int layer, int maxInput) {
+  // 各LEDが何段階目から点くかをmapで計算
+  int led1Level = map(layer, 0, maxInput, 0, 1);  // LED1は0.5以上で点灯
+  int led2Level = map(layer, 0, maxInput, 0, 2);  // LED2は2以上で点灯
+  int led3Level = map(layer, 0, maxInput, 0, 3);  // LED3は4以上で点灯
+
+  digitalWrite(LEDS[2], led1Level > 0 ? HIGH : LOW);
+  digitalWrite(LEDS[1], led2Level > 1 ? HIGH : LOW);
+  digitalWrite(LEDS[0], led3Level > 2 ? HIGH : LOW);
 }
 
 // 指定行をクリアする関数
@@ -755,6 +808,7 @@ void Illmination2(void) {
 }
 
 void Illmination3(void) {
+  /* イルミネーション */
   for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
     digitalWrite(i, HIGH);
     delay(100);
@@ -767,4 +821,15 @@ void Illmination3(void) {
   for (int i = KEYLED_EN1; i <= KEYLED_EN5; i++) {
     digitalWrite(i, HIGH);
   }
+  /* イルミネーションここまで */
+}
+
+void lcdCALC_Title(void) {
+  lcd.setCursor(0, 0);
+  lcd.print("CALC MODE:      ");
+}
+
+void lcdTENKEY_Title(void) {
+  lcd.setCursor(0, 0);
+  lcd.print("10-KEY MODE:    ");
 }
